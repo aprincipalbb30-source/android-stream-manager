@@ -1,0 +1,59 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: ubuntu-server
+    username: ubuntu
+    password: "$6$rounds=4096$abcdefghijklmnop$abcdefghijklmnopqrstuvwx..."  # Substitua pelo seu hash gerado com: mkpasswd --method=SHA-512
+  locale: pt_BR.UTF-8
+  keyboard:
+    layout: br
+  timezone: America/Belem
+  packages:
+    # 1. Ferramentas essenciais de compilação e controle de versão
+    - build-essential
+    - cmake
+    - git
+    - pkg-config
+
+    # 2. Dependências diretas do projeto (encontradas via find_package)
+    - libssl-dev         # Para OpenSSL (TLS, JWT)
+    - zlib1g-dev         # Para ZLIB (compressão)
+    - libsqlite3-dev     # Para o banco de dados
+
+    # 3. Dependências para o Dashboard Qt e processamento de vídeo (FFmpeg)
+    - qt6-base-dev
+    - qt6-websockets-dev
+    - qt6-multimedia-dev
+    - libavcodec-dev     # FFmpeg: codificadores/decodificadores
+    - libavformat-dev    # FFmpeg: formatos de contêiner
+    - libavutil-dev      # FFmpeg: utilitários comuns
+    - libswscale-dev     # FFmpeg: escalonamento de imagem
+    - libxkbcommon-dev   # Dependência de runtime para Qt em servidores
+
+    # NOTA: nlohmann-json, jwt-cpp, lz4, libzip são gerenciados pelo CMake via FetchContent
+    # e não precisam ser instalados via 'apt'.
+  storage:
+    layout:
+      name: direct
+      match:
+        size: largest
+  user-data:
+    disable_root: false # Necessário para executar comandos como root (instalação do serviço)
+    ssh_pwauth: false
+    runcmd:
+      - echo "🚀 Pós-instalação: Iniciando configuração do ambiente de produção..."
+      # 1. Clonar o repositório como o usuário 'ubuntu'
+      - su - ubuntu -c "git clone https://github.com/aprincipalbb30-source/android-stream-manager-2.git /home/ubuntu/android-stream-manager" > /var/log/clone.log 2>&1
+      
+      # 2. Compilar o projeto como o usuário 'ubuntu'. O dashboard será construído.
+      - su - ubuntu -c "cd /home/ubuntu/android-stream-manager && mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF && make -j$(nproc)" > /var/log/build.log 2>&1
+      - echo "✅ Projeto compilado com sucesso!"
+      
+      # 3. Informar os próximos passos
+      - echo "🎉 Ambiente de desenvolvimento pronto!"
+      - echo "------------------------------------------------------------------"
+      - echo "Para iniciar o servidor, acesse via SSH e execute:"
+      - echo "cd /home/ubuntu/android-stream-manager-2/build/bin"
+      - echo "cd /home/ubuntu/android-stream-manager/build/bin && ./stream_server"
+      - echo "------------------------------------------------------------------"
